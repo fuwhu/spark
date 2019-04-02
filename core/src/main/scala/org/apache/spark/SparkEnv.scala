@@ -295,7 +295,10 @@ object SparkEnv extends Logging {
       RpcEndpointRef = {
       if (isDriver) {
         logInfo("Registering " + name)
-        rpcEnv.setupEndpoint(name, endpointCreator)
+        val epRef = rpcEnv.setupEndpoint(name, endpointCreator)
+        logInfo(s"Successfully setup rpc end point ${epRef.name}, " +
+          s"address is ${epRef.address.toSparkURL}")
+        epRef
       } else {
         RpcUtils.makeDriverRef(name, conf, rpcEnv)
       }

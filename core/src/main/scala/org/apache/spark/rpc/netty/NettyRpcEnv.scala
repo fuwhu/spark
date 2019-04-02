@@ -145,6 +145,8 @@ private[netty] class NettyRpcEnv(
 
   override def stop(endpointRef: RpcEndpointRef): Unit = {
     require(endpointRef.isInstanceOf[NettyRpcEndpointRef])
+    logInfo(s"Stopping rpc end point ${endpointRef.name}," +
+      s" address is ${endpointRef.address.toSparkURL}")
     dispatcher.stop(endpointRef)
   }
 
