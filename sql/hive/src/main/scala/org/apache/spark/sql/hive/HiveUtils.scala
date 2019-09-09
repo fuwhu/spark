@@ -27,14 +27,12 @@ import java.util.concurrent.TimeUnit
 import scala.collection.mutable.HashMap
 import scala.collection.JavaConverters._
 import scala.language.implicitConversions
-
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.hive.common.`type`.HiveDecimal
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.conf.HiveConf.ConfVars
 import org.apache.hadoop.hive.serde2.io.{DateWritable, TimestampWritable}
 import org.apache.hadoop.util.VersionInfo
-
 import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql._
@@ -45,7 +43,7 @@ import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.internal.SQLConf._
 import org.apache.spark.sql.internal.StaticSQLConf.{CATALOG_IMPLEMENTATION, WAREHOUSE_PATH}
 import org.apache.spark.sql.types._
-import org.apache.spark.util.Utils
+import org.apache.spark.util.{ChildFirstURLClassLoader, Utils}
 
 
 private[spark] object HiveUtils extends Logging {
@@ -291,6 +289,8 @@ private[spark] object HiveUtils extends Logging {
       // starting from the given classLoader.
       def allJars(classLoader: ClassLoader): Array[URL] = classLoader match {
         case null => Array.empty[URL]
+        case childFirst: ChildFirstURLClassLoader =>
+          childFirst.getURLs() ++ allJars(Utils.getSparkClassLoader)
         case urlClassLoader: URLClassLoader =>
           urlClassLoader.getURLs ++ allJars(urlClassLoader.getParent)
         case other => allJars(other.getParent)
