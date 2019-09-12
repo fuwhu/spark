@@ -297,7 +297,14 @@ private[jdbc] class JDBCRDD(
     val sqlText = s"SELECT $columnList FROM ${options.table} $myWhereClause"
     stmt = conn.prepareStatement(sqlText,
         ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY)
-    stmt.setFetchSize(options.fetchSize)
+    log.info(s"The SQL to run against JDBC is $sqlText")
+    if (options.fetchSize == -1) {
+      log.info("Fetch size of JDBC statement is set to Integer.MIN_VALUE to tell JDBC " +
+        "driver to stream the results back one row at a time. ")
+      stmt.setFetchSize(Integer.MIN_VALUE)
+    } else {
+      stmt.setFetchSize(options.fetchSize)
+    }
     rs = stmt.executeQuery()
     val rowsIterator = JdbcUtils.resultSetToSparkInternalRows(rs, schema, inputMetrics)
 
