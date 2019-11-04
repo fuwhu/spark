@@ -17,7 +17,7 @@
 
 package org.apache.spark.deploy
 
-import java.io.IOException
+import java.io.{File, IOException}
 import java.security.PrivilegedExceptionAction
 import java.text.DateFormat
 import java.util.{Arrays, Comparator, Date, Locale}
@@ -25,7 +25,6 @@ import java.util.{Arrays, Comparator, Date, Locale}
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.util.control.NonFatal
-
 import com.google.common.primitives.Longs
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileStatus, FileSystem, Path, PathFilter}
@@ -33,7 +32,6 @@ import org.apache.hadoop.mapred.JobConf
 import org.apache.hadoop.security.{Credentials, UserGroupInformation}
 import org.apache.hadoop.security.token.{Token, TokenIdentifier}
 import org.apache.hadoop.security.token.delegation.AbstractDelegationTokenIdentifier
-
 import org.apache.spark.{SparkConf, SparkException}
 import org.apache.spark.annotation.DeveloperApi
 import org.apache.spark.internal.Logging
@@ -115,7 +113,17 @@ class SparkHadoopUtil extends Logging {
    */
   def newConfiguration(conf: SparkConf): Configuration = {
     val hadoopConf = new Configuration()
+    val yarnSitePath = hadoopConf.getResource("yarn-site.xml").getPath
+    log.info(s"Before appendS3AndSparkHadoopConfigurations, the yarnSitePath is $yarnSitePath")
+    log.info("Before appendS3AndSparkHadoopConfigurations, " +
+      "the configuration object is " + hadoopConf.toString)
+    log.info("Before appendS3AndSparkHadoopConfigurations, " +
+      "the value of yarn.client.failover-proxy-provider in hadoopConf is " +
+      hadoopConf.get("yarn.client.failover-proxy-provider"))
     appendS3AndSparkHadoopConfigurations(conf, hadoopConf)
+    log.info("After appendS3AndSparkHadoopConfigurations, " +
+      "the value of yarn.client.failover-proxy-provider in hadoopConf is " +
+      hadoopConf.get("yarn.client.failover-proxy-provider"))
     hadoopConf
   }
 

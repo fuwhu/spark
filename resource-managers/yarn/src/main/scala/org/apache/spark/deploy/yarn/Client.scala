@@ -70,6 +70,8 @@ private[spark] class Client(
 
   private val yarnClient = YarnClient.createYarnClient
   private val yarnConf = new YarnConfiguration(hadoopConf)
+  log.info("The value of yarn.client.failover-proxy-provider in yarnConf is " +
+    yarnConf.get("yarn.client.failover-proxy-provider"))
 
   private val isClusterMode = sparkConf.get("spark.submit.deployMode", "client") == "cluster"
 
