@@ -142,10 +142,12 @@ class HadoopMapReduceCommitProtocol(jobId: String, path: String)
     committer.commitJob(jobContext)
     val filesToMove = taskCommits.map(_.obj.asInstanceOf[Map[String, String]])
       .foldLeft(Map[String, String]())(_ ++ _)
-    logDebug(s"Committing files staged for absolute locations $filesToMove")
+    logInfo(s"Committing files staged for absolute locations $filesToMove, " +
+      s"total file number is ${filesToMove.size}")
     if (hasValidPath) {
       val fs = absPathStagingDir.getFileSystem(jobContext.getConfiguration)
       for ((src, dst) <- filesToMove) {
+        logInfo(s"ForDebug : Renaming $src to $dst")
         fs.rename(new Path(src), new Path(dst))
       }
       fs.delete(absPathStagingDir, true)
