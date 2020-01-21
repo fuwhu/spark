@@ -20,11 +20,13 @@ package org.apache.spark.sql.hive
 import org.apache.spark.annotation.{Experimental, InterfaceStability}
 import org.apache.spark.sql._
 import org.apache.spark.sql.catalyst.analysis.Analyzer
+import org.apache.spark.sql.catalyst.optimizer.Optimizer
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.rules.Rule
-import org.apache.spark.sql.execution.SparkPlanner
+import org.apache.spark.sql.execution.{SparkOptimizer, SparkPlanner}
 import org.apache.spark.sql.execution.datasources._
 import org.apache.spark.sql.hive.client.HiveClient
+import org.apache.spark.sql.hive.execution.PruneHiveTablePartitions
 import org.apache.spark.sql.internal.{BaseSessionStateBuilder, SessionResourceLoader, SessionState}
 
 /**
@@ -86,6 +88,20 @@ class HiveSessionStateBuilder(session: SparkSession, parentState: Option[Session
       PreWriteCheck +:
         PreReadCheck +:
         customCheckRules
+  }
+
+  /**
+   * Logical query plan optimizer that takes into account Hive.
+   */
+  override protected def optimizer: Optimizer = {
+    new SparkOptimizer(catalog, experimentalMethods) {
+      override def postHocOptimizationBatches: Seq[Batch] = Seq(
+        Batch("Prune Hive Table Partitions", Once, new PruneHiveTablePartitions(session))
+      )
+
+      override def extendedOperatorOptimizationRules: Seq[Rule[LogicalPlan]] =
+        super.extendedOperatorOptimizationRules ++ customOperatorOptimizationRules
+    }
   }
 
   /**

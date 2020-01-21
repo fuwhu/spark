@@ -436,7 +436,10 @@ case class UnresolvedCatalogRelation(tableMeta: CatalogTable) extends LeafNode {
 case class HiveTableRelation(
     tableMeta: CatalogTable,
     dataCols: Seq[AttributeReference],
-    partitionCols: Seq[AttributeReference]) extends LeafNode with MultiInstanceRelation {
+    partitionCols: Seq[AttributeReference],
+    tableStats: Option[Statistics] = None,
+    @transient prunedPartitions: Option[Seq[CatalogTablePartition]] = None)
+  extends LeafNode with MultiInstanceRelation {
   assert(tableMeta.identifier.database.isDefined)
   assert(tableMeta.partitionSchema.sameType(partitionCols.toStructType))
   assert(tableMeta.dataSchema.sameType(dataCols.toStructType))
