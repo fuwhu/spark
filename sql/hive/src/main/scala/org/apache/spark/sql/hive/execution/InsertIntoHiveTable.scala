@@ -96,6 +96,7 @@ case class InsertIntoHiveTable(
     val tmpLocation = getExternalTmpPath(sparkSession, hadoopConf, tableLocation)
 
     try {
+      logInfo("Calling InsertIntoHiveTable.processInsert in InsertIntoHiveTable.run")
       processInsert(sparkSession, externalCatalog, hadoopConf, tableDesc, tmpLocation, child)
     } finally {
       // Attempt to delete the staging directory and the inclusive files. If failed, the files are

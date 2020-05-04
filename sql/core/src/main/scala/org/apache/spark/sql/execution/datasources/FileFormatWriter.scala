@@ -205,9 +205,12 @@ object FileFormatWriter extends Logging {
         0 until rdd.partitions.length,
         (index, res: WriteTaskResult) => {
           committer.onTaskCommit(res.commitMsg)
+          logInfo(s"resultHandler called on ${SparkEnv.get.executorId}, " +
+            s"type of commitMsg is ${res.commitMsg.obj.getClass}.")
           ret(index) = res
         })
 
+      logInfo(s"On ${SparkEnv.get.executorId}, there are totally ${ret.length} write task results.")
       val commitMsgs = ret.map(_.commitMsg)
 
       committer.commitJob(job, commitMsgs)
@@ -258,8 +261,10 @@ object FileFormatWriter extends Logging {
         // In case of empty job, leave first partition to save meta for file format like parquet.
         new EmptyDirectoryWriteTask(description)
       } else if (description.partitionColumns.isEmpty && description.bucketIdExpression.isEmpty) {
+        logInfo("New single directory write task generated.")
         new SingleDirectoryWriteTask(description, taskAttemptContext, committer)
       } else {
+        logInfo("New dynamic partition write task generated.")
         new DynamicPartitionWriteTask(description, taskAttemptContext, committer)
       }
 
@@ -359,6 +364,7 @@ object FileFormatWriter extends Logging {
 
     private def newOutputWriter(fileCounter: Int): Unit = {
       val ext = description.outputWriterFactory.getFileExtension(taskAttemptContext)
+      logInfo("Called committer.newTaskTempFile in single directory write task.")
       val currentPath = committer.newTaskTempFile(
         taskAttemptContext,
         None,
@@ -498,16 +504,32 @@ object FileFormatWriter extends Logging {
       // This must be in a form that matches our bucketing format. See BucketingUtils.
       val ext = f"$bucketIdStr.c$fileCounter%03d" +
         desc.outputWriterFactory.getFileExtension(taskAttemptContext)
+      logInfo(s"file extension is $ext")
 
+      if (partDir.isDefined) {
+        logInfo(s"partDir is not empty, its value is ${partDir.get}")
+      } else {
+        logInfo("partDir is empty.")
+      }
+      logInfo(s"customPartitionLocations is ${desc.customPartitionLocations.mkString(",")}")
       val customPath = partDir.flatMap { dir =>
           desc.customPartitionLocations.get(PartitioningUtils.parsePathFragment(dir))
       }
+      if (customPath.isDefined) {
+        logInfo(s"customPath is not empty, its value is ${customPath.get}")
+      } else {
+        logInfo("customPath is empty.")
+      }
+
       val currentPath = if (customPath.isDefined) {
+        logInfo("Called committer.newTaskTempFileAbsPath in dynamic partition write task.")
         committer.newTaskTempFileAbsPath(taskAttemptContext, customPath.get, ext)
       } else {
+        logInfo("Called committer.newTaskTempFile in dynamic partition write task.")
         committer.newTaskTempFile(taskAttemptContext, partDir, ext)
       }
 
+      logInfo(s"currentPath of currentWriter is $currentPath")
       currentWriter = desc.outputWriterFactory.newInstance(
         path = currentPath,
         dataSchema = desc.dataColumns.toStructType,

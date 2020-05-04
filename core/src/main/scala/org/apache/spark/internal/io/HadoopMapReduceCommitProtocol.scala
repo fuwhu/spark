@@ -21,13 +21,12 @@ import java.util.{Date, UUID}
 
 import scala.collection.mutable
 import scala.util.Try
-
 import org.apache.hadoop.conf.Configurable
-import org.apache.hadoop.fs.Path
+import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.hadoop.mapreduce._
 import org.apache.hadoop.mapreduce.lib.output.FileOutputCommitter
 import org.apache.hadoop.mapreduce.task.TaskAttemptContextImpl
-
+import org.apache.spark.{SparkContext, SparkEnv}
 import org.apache.spark.internal.Logging
 import org.apache.spark.mapred.SparkHadoopMapRedUtil
 
@@ -108,13 +107,17 @@ class HadoopMapReduceCommitProtocol(
       case _ if dynamicPartitionOverwrite =>
         assert(dir.isDefined,
           "The dataset to be written must be partitioned when dynamicPartitionOverwrite is true.")
+        logInfo(s"Added partition path : ${dir.get}")
         partitionPaths += dir.get
         this.stagingDir
       // For FileOutputCommitter it has its own staging path called "work path".
       case f: FileOutputCommitter =>
+        logInfo(s"Work path of FileOutputCommitter is ${f.getWorkPath}, " +
+          s"if work path is not specified, it use $path.")
         new Path(Option(f.getWorkPath).map(_.toString).getOrElse(path))
       case _ => new Path(path)
     }
+    logInfo(s"stagingDir is $stagingDir, file name is $filename")
 
     dir.map { d =>
       new Path(new Path(stagingDir, d), filename).toString
@@ -132,6 +135,8 @@ class HadoopMapReduceCommitProtocol(
     // In principle we could include hash(absoluteDir) instead but this is simpler.
     val tmpOutputPath = new Path(stagingDir, UUID.randomUUID().toString() + "-" + filename).toString
 
+    logInfo(s"Added new output path, $tmpOutputPath -> $absOutputPath " +
+      s"(executor id is ${SparkEnv.get.executorId})")
     addedAbsPathFiles(tmpOutputPath) = absOutputPath
     tmpOutputPath
   }
@@ -164,17 +169,32 @@ class HadoopMapReduceCommitProtocol(
 
   override def commitJob(jobContext: JobContext, taskCommits: Seq[TaskCommitMessage]): Unit = {
     committer.commitJob(jobContext)
+    val fs = stagingDir.getFileSystem(jobContext.getConfiguration)
+    val outputPath = "/apps/gdgrt/gdpr/gdgrt_entity_linking.db/linkings_test_snapshot/" +
+      "dt=2020-04-05/cross_property=PP/linking_category=asset_combination_set"
+    logInfo(s"Does file $outputPath exist : ${fs.exists(new Path(outputPath))}")
+    logInfo(s"stagingDir is $stagingDir, does it exist : ${fs.exists(stagingDir)}")
 
     if (hasValidPath) {
+      logInfo(s"size of taskCommits is ${taskCommits.size}")
       val (allAbsPathFiles, allPartitionPaths) =
         taskCommits.map(_.obj.asInstanceOf[(Map[String, String], Set[String])]).unzip
       val fs = stagingDir.getFileSystem(jobContext.getConfiguration)
-
+      logInfo(s"size of allAbsPathFiles is ${allAbsPathFiles.size}, " +
+        s"size of allPartitionPaths is ${allPartitionPaths.size}")
       val filesToMove = allAbsPathFiles.foldLeft(Map[String, String]())(_ ++ _)
-      logDebug(s"Committing files staged for absolute locations $filesToMove")
+      logInfo(s"totally ${filesToMove.size} files to move.")
+      if (filesToMove.nonEmpty) {
+        logInfo(s"Committing files staged for absolute locations like " +
+          s"${filesToMove.head._1} to ${filesToMove.head._2}, ")
+      }
+      val partPathSet = allPartitionPaths.foldLeft(Set[String]())(_ ++ _)
+      logInfo(s"size of partPathSet is ${partPathSet.size}, " +
+        s"and the value of partPathSet is ${partPathSet.mkString(",")}")
+
       if (dynamicPartitionOverwrite) {
         val absPartitionPaths = filesToMove.values.map(new Path(_).getParent).toSet
-        logDebug(s"Clean up absolute partition directories for overwriting: $absPartitionPaths")
+        logInfo(s"Clean up absolute partition directories for overwriting: $absPartitionPaths")
         absPartitionPaths.foreach(fs.delete(_, true))
       }
       for ((src, dst) <- filesToMove) {
@@ -183,7 +203,7 @@ class HadoopMapReduceCommitProtocol(
 
       if (dynamicPartitionOverwrite) {
         val partitionPaths = allPartitionPaths.foldLeft(Set[String]())(_ ++ _)
-        logDebug(s"Clean up default partition directories for overwriting: $partitionPaths")
+        logInfo(s"Clean up default partition directories for overwriting: $partitionPaths")
         for (part <- partitionPaths) {
           val finalPartPath = new Path(path, part)
           fs.delete(finalPartPath, true)
@@ -214,6 +234,16 @@ class HadoopMapReduceCommitProtocol(
     val attemptId = taskContext.getTaskAttemptID
     SparkHadoopMapRedUtil.commitTask(
       committer, taskContext, attemptId.getJobID.getId, attemptId.getTaskID.getId)
+    logInfo(s"Committing task ${taskContext.getTaskAttemptID} on ${SparkEnv.get.executorId}, " +
+      s"size of addedAbsPathFiles is ${addedAbsPathFiles.size}, " +
+      s"size of partitionPaths is ${partitionPaths.size}")
+    if (addedAbsPathFiles.nonEmpty) {
+      logInfo(s"Sample added abs path file :" +
+        s" ${addedAbsPathFiles.head._1} -> ${addedAbsPathFiles.head._2}")
+    }
+    if (partitionPaths.nonEmpty) {
+      logInfo(s"Sample partition path : ${partitionPaths.head}")
+    }
     new TaskCommitMessage(addedAbsPathFiles.toMap -> partitionPaths.toSet)
   }
 
