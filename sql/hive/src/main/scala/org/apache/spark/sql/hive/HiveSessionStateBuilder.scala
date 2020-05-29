@@ -95,9 +95,17 @@ class HiveSessionStateBuilder(session: SparkSession, parentState: Option[Session
    */
   override protected def optimizer: Optimizer = {
     new SparkOptimizer(catalog, experimentalMethods) {
-      override def postHocOptimizationBatches: Seq[Batch] = Seq(
-        Batch("Prune Hive Table Partitions", Once, new PruneHiveTablePartitions(session))
-      )
+      override def postHocOptimizationBatches: Seq[Batch] = {
+        if (conf.optimizerPruneHiveTablePartitions) {
+          logInfo("The rule PruneHiveTablePartitions enabled.")
+          Seq(
+            Batch("Prune Hive Table Partitions", Once, new PruneHiveTablePartitions(session))
+          ) ++ super.postHocOptimizationBatches
+        } else {
+          logInfo("The rule PruneHiveTablePartitions is not enabled.")
+          super.postHocOptimizationBatches
+        }
+      }
 
       override def extendedOperatorOptimizationRules: Seq[Rule[LogicalPlan]] =
         super.extendedOperatorOptimizationRules ++ customOperatorOptimizationRules

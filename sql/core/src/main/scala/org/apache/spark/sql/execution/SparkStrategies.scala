@@ -149,6 +149,10 @@ abstract class SparkStrategies extends QueryPlanner[SparkPlan] {
      * Matches a plan whose output should be small enough to be used in broadcast join.
      */
     private def canBroadcast(plan: LogicalPlan): Boolean = {
+      logInfo(s"In JoinSelection.canBroadcast, plan.stats.sizeInbytes " +
+        s"is ${plan.stats.sizeInBytes} for logical plan ${plan.treeString}, " +
+        s"and autoBroadcastJoinThreshold is ${conf.autoBroadcastJoinThreshold}"
+      )
       plan.stats.sizeInBytes >= 0 && plan.stats.sizeInBytes <= conf.autoBroadcastJoinThreshold
     }
 
@@ -249,6 +253,7 @@ abstract class SparkStrategies extends QueryPlanner[SparkPlan] {
       case ExtractEquiJoinKeys(joinType, leftKeys, rightKeys, condition, left, right)
         if canBroadcastBySizes(joinType, left, right) =>
         val buildSide = broadcastSideBySizes(joinType, left, right)
+        logInfo(s"BroadcastHashJoinExec generated for logical plan ${plan.treeString}")
         Seq(joins.BroadcastHashJoinExec(
           leftKeys, rightKeys, joinType, buildSide, condition, planLater(left), planLater(right)))
 
@@ -258,6 +263,7 @@ abstract class SparkStrategies extends QueryPlanner[SparkPlan] {
          if !conf.preferSortMergeJoin && canBuildRight(joinType) && canBuildLocalHashMap(right)
            && muchSmaller(right, left) ||
            !RowOrdering.isOrderable(leftKeys) =>
+        logInfo(s"ShuffledHashJoinExec generated for logical plan ${plan.treeString}")
         Seq(joins.ShuffledHashJoinExec(
           leftKeys, rightKeys, joinType, BuildRight, condition, planLater(left), planLater(right)))
 
@@ -265,6 +271,7 @@ abstract class SparkStrategies extends QueryPlanner[SparkPlan] {
          if !conf.preferSortMergeJoin && canBuildLeft(joinType) && canBuildLocalHashMap(left)
            && muchSmaller(left, right) ||
            !RowOrdering.isOrderable(leftKeys) =>
+        logInfo(s"ShuffledHashJoinExec generated for logical plan ${plan.treeString}")
         Seq(joins.ShuffledHashJoinExec(
           leftKeys, rightKeys, joinType, BuildLeft, condition, planLater(left), planLater(right)))
 
@@ -272,6 +279,7 @@ abstract class SparkStrategies extends QueryPlanner[SparkPlan] {
 
       case ExtractEquiJoinKeys(joinType, leftKeys, rightKeys, condition, left, right)
         if RowOrdering.isOrderable(leftKeys) =>
+        logInfo(s"SortMergeJoinExec generated for logical plan ${plan.treeString}")
         joins.SortMergeJoinExec(
           leftKeys, rightKeys, joinType, condition, planLater(left), planLater(right)) :: Nil
 

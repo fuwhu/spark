@@ -29,6 +29,7 @@ import org.apache.spark.sql.types.StructType
 
 abstract class LogicalPlan
   extends QueryPlan[LogicalPlan]
+  with AnalysisHelper
   with LogicalPlanStats
   with QueryPlanConstraints
   with Logging {

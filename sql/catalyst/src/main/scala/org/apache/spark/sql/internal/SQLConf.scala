@@ -122,6 +122,13 @@ object SQLConf {
       .intConf
       .createWithDefault(10)
 
+  val OPTIMIZER_PRUNE_HIVE_TABLE_PARTITIONS =
+    buildConf("spark.sql.optimizer.pruneHiveTablePartitions")
+    .internal()
+    .doc("Control whether the PruneHiveTablePartitions rule is enabled.")
+    .booleanConf
+    .createWithDefault(false)
+
   val COMPRESS_CACHED = buildConf("spark.sql.inMemoryColumnarStorage.compressed")
     .doc("When set to true Spark SQL will automatically select a compression codec for each " +
       "column based on statistics of the data.")
@@ -1206,6 +1213,8 @@ class SQLConf extends Serializable with Logging {
   def optimizerMaxIterations: Int = getConf(OPTIMIZER_MAX_ITERATIONS)
 
   def optimizerInSetConversionThreshold: Int = getConf(OPTIMIZER_INSET_CONVERSION_THRESHOLD)
+
+  def optimizerPruneHiveTablePartitions: Boolean = getConf(OPTIMIZER_PRUNE_HIVE_TABLE_PARTITIONS)
 
   def stateStoreProviderClass: String = getConf(STATE_STORE_PROVIDER_CLASS)
 

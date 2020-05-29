@@ -34,24 +34,33 @@ class PruneHiveTablePartitionsSuite extends QueryTest with SQLTestUtils with Tes
 
   test("SPARK-15616 statistics pruned after going throuhg PruneHiveTablePartitions") {
     withTable("test", "temp") {
-      sql(
-        s"""
-          |CREATE TABLE test(i int)
-          |PARTITIONED BY (p int)
-          |STORED AS textfile""".stripMargin)
-      spark.range(0, 1000, 1).selectExpr("id as col")
-        .createOrReplaceTempView("temp")
-
-      for (part <- Seq(1, 2, 3, 4)) {
+      withTempDir { dir =>
         sql(
           s"""
-            |INSERT OVERWRITE TABLE test PARTITION (p='$part')
-            |select col from temp""".stripMargin)
+            |CREATE EXTERNAL TABLE test(i int)
+            |PARTITIONED BY (p int)
+            |STORED AS sequencefile
+            |LOCATION '${dir.toURI}'""".stripMargin)
+        spark.range(0, 1000, 1).selectExpr("id as col")
+          .createOrReplaceTempView("temp")
+
+        for (part <- Seq(1, 2, 3, 4)) {
+          sql(
+            s"""
+              |INSERT OVERWRITE TABLE test PARTITION (p='$part')
+              |select col from temp""".stripMargin)
+        }
+        val analyzed1 = sql("select i from test where p > 0").queryExecution.analyzed
+        // scalastyle:off println
+        println(s"analyzed1 is ${analyzed1.treeString}")
+        // scalastyle:on println
+        val analyzed2 = sql("select i from test where p = 1").queryExecution.analyzed
+        // scalastyle:off println
+        println(s"analyzed2 is ${analyzed2.treeString}")
+        // scalastyle:on println
+        assert(Optimize.execute(analyzed1).stats.sizeInBytes / 4 ===
+          Optimize.execute(analyzed2).stats.sizeInBytes)
       }
-      val analyzed1 = sql("select i from test where p > 0").queryExecution.analyzed
-      val analyzed2 = sql("select i from test where p = 1").queryExecution.analyzed
-      assert(Optimize.execute(analyzed1).stats.sizeInBytes / 4 ===
-        Optimize.execute(analyzed2).stats.sizeInBytes)
     }
   }
 }
